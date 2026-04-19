@@ -1151,7 +1151,6 @@ func (v *VoiceConnection) handleDAVEBinary(message []byte) {
 			return
 		}
 		transitionID := binary.BigEndian.Uint16(payload[0:2])
-		v.log(LogInformational, "DAVE commit transition_id=%d, requesting re-Welcome", transitionID)
 
 		v.RLock()
 		dave := v.dave
@@ -1160,16 +1159,20 @@ func (v *VoiceConnection) handleDAVEBinary(message []byte) {
 			return
 		}
 
-		dave.HandlePrepareTransition(transitionID, 1)
-		v.sendDAVEReadyForTransition(transitionID)
+		if !dave.IsActive() {
+			v.log(LogInformational, "DAVE commit transition_id=%d, not yet in group, requesting re-Welcome", transitionID)
 
-		kpData, err := dave.GenerateKeyPackage()
-		if err != nil {
-			v.log(LogError, "DAVE key package generation for re-Welcome failed: %s", err)
-			return
+			dave.HandlePrepareTransition(transitionID, 1)
+			v.sendDAVEReadyForTransition(transitionID)
+
+			kpData, err := dave.GenerateKeyPackage()
+			if err != nil {
+				v.log(LogError, "DAVE key package generation for re-Welcome failed: %s", err)
+				return
+			}
+			v.sendDAVEKeyPackageBinary(kpData)
+			v.sendDAVEInvalidCommitWelcome(transitionID)
 		}
-		v.sendDAVEKeyPackageBinary(kpData)
-		v.sendDAVEInvalidCommitWelcome(transitionID)
 
 	case 30:
 		if len(payload) < 2 {
